@@ -1,6 +1,8 @@
-# Upload Feature for AdminBro
+# Upload Feature for AdminBro with support for uploading to arrays
 
-This is an official [AdminBro](https://github.com/SoftwareBrothers/admin-bro) feature which uploads files to resources.
+This is a fork of the official [AdminBro](https://github.com/SoftwareBrothers/admin-bro) feature which uploads files to resources.
+
+This fork adds the ability to upload files to an array of nested objects.
 
 ## AdminBro
 
