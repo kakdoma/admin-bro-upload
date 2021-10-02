@@ -76,6 +76,7 @@ const uploadFileFeature = (config: UploadOptions): FeatureType => {
     keyProperty: properties.key,
     bucketProperty: properties.bucket,
     mimeTypeProperty: properties.mimeType,
+    fileNameProperty: properties.filename,
     // bucket property can be empty so default bucket has to be passed
     defaultBucket: provider.bucket,
     mimeTypes: validation?.mimeTypes,

@@ -10,15 +10,20 @@ export const deleteFile = async (
   record?: BaseRecord,
 ): Promise<void> => {
   const { properties, multiple } = options
-  const key = record?.get(properties.key)
 
-  if (record && key && !multiple) {
-    const storedBucket = properties.bucket && record.get(properties.bucket) as string
-    await provider.delete(key as string, storedBucket || provider.bucket, context)
-  } else if (record && multiple && key && (key as Array<string>).length) {
-    const storedBuckets = properties.bucket ? record.get(properties.bucket) as Array<string> : []
-    await Promise.all((key as Array<string>).map(async (singleKey, index) => (
-      provider.delete(singleKey as string, storedBuckets[index] || provider.bucket, context)
-    )))
+  if (record && !multiple) {
+    const key = record?.get(properties.key)
+    if (key) {
+      const storedBucket = properties.bucket && record.get(properties.bucket) as string
+      await provider.delete(key as string, storedBucket || provider.bucket, context)
+    }
+  } else if (record && multiple) {
+    const files = record?.get(properties.file)
+    if (files && files.length) {
+      await Promise.all((files).map(async (file) => (
+        provider.delete(file[properties.key],
+          properties.bucket ? file[properties.bucket] : provider.bucket, context)
+      )))
+    }
   }
 }

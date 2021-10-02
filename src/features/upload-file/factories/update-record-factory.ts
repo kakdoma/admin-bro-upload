@@ -10,7 +10,6 @@ import {
 import { buildRemotePath } from '../utils/build-remote-path'
 import { BaseProvider } from '../providers'
 import { UploadOptionsWithDefault } from '../types/upload-options.type'
-import { DB_PROPERTIES } from '../constants'
 import { getNamespaceFromContext } from './strip-payload-factory'
 
 export const updateRecordFactory = (
@@ -38,67 +37,62 @@ export const updateRecordFactory = (
     }
 
     if (record && record.isValid()) {
-      if (multiple && filesToDelete && filesToDelete.length) {
-        const filesData = (filesToDelete as Array<string>).map((index) => ({
-          key: record.get(properties.key)[index] as string,
-          bucket: record.get(properties.bucket)[index] as string | undefined,
-        }))
+      if (multiple) {
+        if (files && files.length) {
+          const recordFiles = record.get(properties.file)
+          const uploadedFiles = files.filter(
+            (file, i) => !recordFiles || i >= recordFiles.length,
+          ) as Array<UploadedFile>
+          const keys = await Promise.all<string>(uploadedFiles
+            .map(async (uploadedFile) => {
+              const key = buildRemotePath(record, uploadedFile, uploadPath)
+              await provider.upload(uploadedFile, key, context)
+              return key
+            }))
+          let params = recordFiles ? recordFiles.reduce((acc, file, i) => flat.set(acc, `${properties.file}.${i}`, file), {}) : {}
+          params = uploadedFiles.reduce((acc, file, i) => {
+            const realIndex = i + (recordFiles ? Object.keys(recordFiles).length : 0)
+            const value: Record<string, string | number | null> = { [properties.key]: keys[i] }
+            if (properties.bucket) {
+              value[properties.bucket] = provider.bucket
+            }
+            if (properties.size) {
+              value[properties.size] = file.size
+            }
+            if (properties.mimeType) {
+              value[properties.mimeType] = file.type
+            }
+            if (properties.filename) {
+              value[properties.filename] = file.name
+            }
+            return flat.set(acc, `${properties.file}.${realIndex}`, value)
+          }, params)
 
-        await Promise.all(filesData.map(async (fileData) => (
-          provider.delete(fileData.key, fileData.bucket || provider.bucket, context)
-        )))
-
-        const newParams = DB_PROPERTIES.reduce((params, propertyName: string) => {
-          if (properties[propertyName]) {
-            const filtered = record.get(properties[propertyName]).filter((el, i) => (
-              !filesToDelete.includes(i.toString())
-            ))
-            return flat.set(params, properties[propertyName], filtered)
-          }
-          return params
-        }, {})
-
-        await record.update(newParams)
-      }
-      if (multiple && files && files.length) {
-        const uploadedFiles = files as Array<UploadedFile>
-
-        const keys = await Promise.all<string>(uploadedFiles.map(async (uploadedFile) => {
-          const key = buildRemotePath(record, uploadedFile, uploadPath)
-          await provider.upload(uploadedFile, key, context)
-          return key
-        }))
-
-        let params = flat.set({}, properties.key, [
-          ...(record.get(properties.key) || []),
-          ...keys,
-        ])
-        if (properties.bucket) {
-          params = flat.set(params, properties.bucket, [
-            ...(record.get(properties.bucket) || []),
-            ...uploadedFiles.map(() => provider.bucket),
-          ])
-        }
-        if (properties.size) {
-          params = flat.set(params, properties.size, [
-            ...(record.get(properties.size) || []),
-            ...uploadedFiles.map((file) => file.size),
-          ])
-        }
-        if (properties.mimeType) {
-          params = flat.set(params, properties.mimeType, [
-            ...(record.get(properties.mimeType) || []),
-            ...uploadedFiles.map((file) => file.type),
-          ])
-        }
-        if (properties.filename) {
-          params = flat.set(params, properties.filename, [
-            ...(record.get(properties.filename) || []),
-            ...uploadedFiles.map((file) => file.name),
-          ])
+          await record.update(params)
         }
 
-        await record.update(params)
+        if (
+          filesToDelete
+            && filesToDelete[properties.file]
+            && filesToDelete[properties.file].length
+        ) {
+          const filesData = (filesToDelete[properties.file] as Array<string>).map((index) => ({
+            key: record.get(properties.file)[index][properties.key] as string,
+            bucket: properties.bucket
+              ? record.get(properties.file)[index][properties.bucket]
+              : undefined,
+          }))
+          await Promise.all(filesData.map(async (fileData) => (
+            provider.delete(fileData.key, fileData.bucket || provider.bucket, context)
+          )))
+
+          const newFiles = record.get(properties.file).filter((el, i) => (
+            !filesToDelete[properties.file].includes(i.toString())
+          ))
+
+          const newParams = flat.set({}, properties.file, newFiles)
+          await record.update(newParams)
+        }
 
         return {
           ...response,
@@ -147,11 +141,7 @@ export const updateRecordFactory = (
         // and file exists
         if (key && bucket) {
           const params = {
-            [properties.key]: null,
-            ...properties.bucket && { [properties.bucket]: null },
-            ...properties.size && { [properties.size]: null },
-            ...properties.mimeType && { [properties.mimeType]: null },
-            ...properties.filename && { [properties.filename]: null },
+            [properties.file]: null,
           }
 
           await record.update(params)

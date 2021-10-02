@@ -49,34 +49,41 @@ const SingleFile: FC<SingleFileProps> = (props) => {
 const File: FC<Props> = ({ width, record, property }) => {
   const { custom } = property as unknown as { custom: PropertyCustom }
 
-  const path = flat.get(record?.params, custom.filePathProperty)
+  if (!custom.multiple) {
+    const path = flat.get(record?.params, custom.filePathProperty)
 
-  if (!path) {
+    if (!path) {
+      return null
+    }
+
+    const name = flat.get(
+        record?.params,
+        custom.fileNameProperty ? custom.fileNameProperty : custom.keyProperty,
+    )
+    const mimeType = custom.mimeTypeProperty && flat.get(record?.params, custom.mimeTypeProperty)
+
+    if (!property.custom.multiple) {
+      return <SingleFile path={path} name={name} width={width} mimeType={mimeType} />
+    }
+  }
+
+  const files = flat.get(record?.params, custom.fileProperty)
+  if (!files || !files.length) {
     return null
   }
 
-  const name = flat.get(
-    record?.params,
-    custom.fileNameProperty ? custom.fileNameProperty : custom.keyProperty,
-  )
-  const mimeType = custom.mimeTypeProperty && flat.get(record?.params, custom.mimeTypeProperty)
-
-  if (!property.custom.multiple) {
-    return <SingleFile path={path} name={name} width={width} mimeType={mimeType} />
-  }
-
   return (
-    <>
-      {path.map((singlePath, index) => (
+    <Box flex flexDirection="column" style={{ gap: 10 }}>
+      {files.map((file) => (
         <SingleFile
-          key={singlePath}
-          path={singlePath}
-          name={name[index]}
-          width={width}
-          mimeType={mimeType[index]}
+          key={file[custom.keyProperty]}
+          path={file[custom.filePathProperty]}
+          name={custom.fileNameProperty && file[custom.fileNameProperty]}
+          width={300}
+          mimeType={custom.mimeTypeProperty && file[custom.mimeTypeProperty]}
         />
       ))}
-    </>
+    </Box>
   )
 }
 
